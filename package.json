@@ -1,0 +1,28 @@
+{
+  "name": "nl-to-regex",
+  "version": "0.1.0",
+  "description": "Translate English descriptions into valid JavaScript RegExp objects, using a fast offline template engine with an optional local LLM fallback (gemma-3-1b-nl-to-regex).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "compile:jison": "jison src/providers/grammar/language.jison src/providers/grammar/language.jisonlex -o src/providers/grammar/language.generated.cjs",
+    "copy:grammar": "node -e \"require('fs').cpSync('src/providers/grammar/language.generated.cjs','dist/providers/grammar/language.generated.cjs')\"",
+    "build": "npm run compile:jison && tsc -p . && npm run copy:grammar",
+    "test": "node --experimental-vm-modules ./dist/selftest.js"
+  },
+  "peerDependencies": {
+    "@huggingface/transformers": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@huggingface/transformers": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "jison": "^0.4.18",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}
