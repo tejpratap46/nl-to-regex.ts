@@ -24,5 +24,8 @@
     "jison": "^0.4.18",
     "typescript": "^5.9.3"
   },
+  "overrides": {
+    "underscore": "^1.13.8"
+  },
   "license": "MIT"
 }
