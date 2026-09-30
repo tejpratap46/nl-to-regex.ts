@@ -1,8 +1,7 @@
 /**
- * IMPORTANT, non-obvious thing about this dataset/model:
+ * IMPORTANT, non-obvious thing about this dataset:
  *
- * The regex strings in inclinedadarsh/nl-to-regex (and therefore whatever
- * gemma-3-1b-nl-to-regex was fine-tuned to emit) are NOT plain ECMAScript
+ * The regex strings in inclinedadarsh/nl-to-regex are NOT plain ECMAScript
  * regex. They come from the deep-regex / KB13 corpus, which encodes its
  * targets in a small DSL layered on top of regex syntax:
  *
@@ -23,10 +22,9 @@
  *
  * This is a single-level (non-recursive) top-level splitter. Every example
  * in the dataset only nests `&`/`~` one level deep, so this covers the
- * dataset and the model's likely output distribution. If you feed it
- * something with deeper nesting it will fall back to returning the
- * original string unmodified for that clause (safe, but may not be a
- * perfect translation) rather than throwing.
+ * dataset patterns. If you feed it something with deeper nesting it will
+ * fall back to returning the original string unmodified for that clause
+ * (safe, but may not be a perfect translation) rather than throwing.
  */
 
 /** Escape a literal so it's safe to splice into a regex (used by the

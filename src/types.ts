@@ -16,7 +16,7 @@ export interface TranslationResult {
 }
 
 /**
- * Every backend (template engine, local LLM, remote API, ...) implements
+ * Every backend (template engine, custom rules, remote API, ...) implements
  * this. Keeping it this small is what lets `translate()` fall through a
  * chain of providers without caring how any one of them works internally.
  */

@@ -1,6 +1,3 @@
-// Optional peer dependency
-declare module '@huggingface/transformers';
-
 declare module '*/language.generated.cjs' {
   interface GeneratedLexer {
     setInput(input: string, yy?: unknown): void;

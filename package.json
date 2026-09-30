@@ -1,7 +1,7 @@
 {
   "name": "nl-to-regex",
   "version": "0.1.0",
-  "description": "Translate English descriptions into valid JavaScript RegExp objects, using a fast offline template engine with an optional local LLM fallback (gemma-3-1b-nl-to-regex).",
+  "description": "Translate English descriptions into valid JavaScript RegExp objects, using a fast offline template engine.",
   "author": "Tej Pratap Singh <tejpratap46@gmail.com>",
   "type": "module",
   "main": "dist/index.js",
@@ -41,14 +41,6 @@
     "url": "https://github.com/tejpratap46/nl-to-regex.ts/issues"
   },
   "homepage": "https://github.com/tejpratap46/nl-to-regex.ts#readme",
-  "peerDependencies": {
-    "@huggingface/transformers": "^3.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@huggingface/transformers": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@types/node": "^26.5.1",
     "jison": "^0.4.18",

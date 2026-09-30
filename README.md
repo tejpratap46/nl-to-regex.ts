@@ -18,7 +18,6 @@ re.test('uuzip'); // true
 - [Usage](#usage)
 - [Supported phrasings](#supported-phrasings)
 - [Gotchas](#gotchas)
-- [Adding the LLM fallback](#adding-the-llm-fallback)
 - [Extending the grammar](#extending-the-grammar)
 - [Adding a rule at runtime](#adding-a-rule-at-runtime)
 - [Build & test](#build--test)
@@ -29,24 +28,18 @@ re.test('uuzip'); // true
 ```
 NlToRegex.translate(query)
   -> TemplateProvider   (instant, deterministic, zero runtime deps)
-  -> LlmProvider        (optional, for open-ended phrasing)
+  -> Custom providers   (optional, user-defined)
 ```
 
-`inclinedadarsh/gemma-3-1b-nl-to-regex` is a 1B-parameter Gemma checkpoint
-fine-tuned on `inclinedadarsh/nl-to-regex` — which is itself just a CSV
-export of the **deep-regex / KB13** corpus (824 rows), generated from a
-small, fixed set of English sentence templates crossed with a small set
-of regex constructions. Given that, an LLM is the expensive way to solve
-this: you'd be shipping a >1GB model to reproduce what is, for the
-templated phrasings the dataset actually contains, a lookup table.
+The **deep-regex / KB13** corpus (824 rows, also available as `inclinedadarsh/nl-to-regex`)
+is generated from a small, fixed set of English sentence templates crossed
+with a small set of regex constructions.
 
-So this library leads with a **grammar-based template engine**
-(`TemplateProvider`) that covers the same phrase patterns directly and
-deterministically, and falls back to a real model (`LlmProvider`) only
-for phrasing the grammar doesn't recognize. Both implement the same
-`RegexProvider` interface, so you can add your own (a hosted inference
-endpoint, a different local model, embedding-based retrieval over the
-824 examples) without touching the orchestrator.
+This library provides a fast, offline **grammar-based template engine**
+(`TemplateProvider`) that covers these phrase patterns directly and
+deterministically without heavy runtime dependencies or machine learning models.
+It implements the `RegexProvider` interface, so you can easily chain your own
+custom providers without touching the orchestrator.
 
 The template engine's grammar lives in
 [`src/providers/grammar/language.jison`](src/providers/grammar/language.jison)
@@ -77,7 +70,7 @@ re.test('we dance tonight'); // true
 ```
 
 `translate()` returns `null` (never throws) when nothing matches, so you
-can decide what to do — ask the user to rephrase, fall back to an LLM
+can decide what to do — ask the user to rephrase, fall back to a custom
 provider, etc.
 
 ## Supported phrasings
@@ -114,8 +107,7 @@ shapes (`"starts with 'a' and contains a digit"` isn't supported) — see
 ## Gotchas
 
 Two things about the underlying dataset that will silently break your
-regex if you're not using `TemplateProvider`/`LlmProvider` (which already
-handle both):
+regex if you're not using `TemplateProvider` (which already handles both):
 
 1. **The target strings are a small DSL, not plain regex.** `&` means
    AND, `~(X)` means NOT — e.g. `(.*a.*)&(.*b.*)` means "contains a AND
@@ -124,7 +116,7 @@ handle both):
    matches almost nothing. [`src/dslToRegExp.ts`](src/dslToRegExp.ts)
    converts these into lookaheads (`(?=a)(?=b)`) / negative lookaheads
    (`(?!x)`) before you ever call `new RegExp(...)`. **Every pattern from
-   either provider must go through `dslToRegExp()`** — only bypass it if
+   `TemplateProvider` goes through `dslToRegExp()`** — keep this in mind if
    you're hand-rolling a new provider.
 
 2. **JS matching semantics differ from what the dataset assumes.** The
@@ -134,31 +126,8 @@ handle both):
    explicitly with `^`/`$`. That means dataset targets for "starts with
    X" (`X.*`, no `^`) and "ends with X" (`.*X`, no `$`) are silently
    wrong in JS — `X.*` matches a string that merely *contains* X.
-   `TemplateProvider` adds the anchors; if you route "starts with"/"ends
-   with" phrasing through `LlmProvider`, the model's raw output has the
-   same gap and needs the same post-processing (or just let
-   `TemplateProvider` catch those phrasings first, which it will).
-
-## Adding the LLM fallback
-
-```ts
-import { NlToRegex, TemplateProvider, LlmProvider } from 'nl-to-regex';
-
-const translator = new NlToRegex([
-  new TemplateProvider(),
-  new LlmProvider({ modelPath: './models/gemma-3-1b-nl-to-regex' }),
-]);
-
-const result = await translator.translate('lines mentioning either a cat or a dog but never both');
-```
-
-`LlmProvider` needs the optional peer dependency `@huggingface/transformers`
-and a local ONNX export of the model — see the conversion steps and
-size/quantization trade-offs documented at the top of
-[`src/providers/llmProvider.ts`](src/providers/llmProvider.ts). That
-conversion needs network + Python and can't happen inside this scaffold;
-do it once on your own machine, then point `modelPath` at the output
-directory.
+   `TemplateProvider` adds the anchors to ensure standard JavaScript regex
+   matching semantics.
 
 ## Extending the grammar
 
@@ -273,7 +242,6 @@ src/
   selftest.ts                     # sample queries run via `node dist/selftest.js`
   providers/
     templateProvider.ts           # grammar-backed provider (default, no runtime deps)
-    llmProvider.ts                 # optional local-model provider
     grammar/
       language.jison               # grammar (production rules -> DSL fragments)
       language.jisonlex            # lexer (tokens)

@@ -44,8 +44,7 @@ function tryMatch(tokens: Token[], match: MatchSpec[]): string[] | null {
  * small set of English sentence templates crossed with a small set of
  * regex constructions (see the deep-regex / KB13 paper). That means the
  * *surface phrasing* is narrow and repetitive even though the dataset
- * itself is small — which makes it a much better fit for a grammar than
- * for a fine-tuned LLM.
+ * itself is small — which makes it well-suited for a grammar-based engine.
  *
  * This provider used to be a flat array of `RegExp`-matching rules run
  * in sequence. It's now backed by a real grammar
@@ -56,8 +55,8 @@ function tryMatch(tokens: Token[], match: MatchSpec[]): string[] | null {
  * dependencies, just the generated parser.
  *
  * It never guesses: if the input doesn't match the grammar,
- * `translate()` returns null so the caller can fall through to an LLM
- * provider for genuinely novel phrasing.
+ * `translate()` returns null so the caller can fall through to custom
+ * providers or handle unknown phrasing.
  *
  * Since the compiled grammar can't be extended without a rebuild,
  * `addRule()` offers a lightweight escape hatch: it reuses the SAME
