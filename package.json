@@ -2,15 +2,45 @@
   "name": "nl-to-regex",
   "version": "0.1.0",
   "description": "Translate English descriptions into valid JavaScript RegExp objects, using a fast offline template engine with an optional local LLM fallback (gemma-3-1b-nl-to-regex).",
+  "author": "Tej Pratap Singh <tejpratap46@gmail.com>",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/selftest.*"
+  ],
   "scripts": {
     "compile:jison": "jison src/providers/grammar/language.jison src/providers/grammar/language.jisonlex -o src/providers/grammar/language.generated.cjs",
     "copy:grammar": "node -e \"require('fs').cpSync('src/providers/grammar/language.generated.cjs','dist/providers/grammar/language.generated.cjs')\"",
     "build": "npm run compile:jison && tsc -p . && npm run copy:grammar",
-    "test": "node --experimental-vm-modules ./dist/selftest.js"
+    "test": "node --experimental-vm-modules ./dist/selftest.js",
+    "prepublishOnly": "npm run build && npm test"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tejpratap46/nl-to-regex.ts.git"
+  },
+  "keywords": [
+    "regex",
+    "regexp",
+    "natural-language",
+    "nl-to-regex",
+    "deep-regex",
+    "dsl",
+    "parser"
+  ],
+  "bugs": {
+    "url": "https://github.com/tejpratap46/nl-to-regex.ts/issues"
+  },
+  "homepage": "https://github.com/tejpratap46/nl-to-regex.ts#readme",
   "peerDependencies": {
     "@huggingface/transformers": "^3.0.0"
   },

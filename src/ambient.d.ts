@@ -1,6 +1,23 @@
-// Optional peer dependency — only needed if you construct an LlmProvider.
-// This ambient declaration lets the library compile without it installed;
-// consumers who actually use LlmProvider get real types once they run
-// `npm install @huggingface/transformers` (it ships its own .d.ts files
-// which take precedence over this fallback).
+// Optional peer dependency
 declare module '@huggingface/transformers';
+
+declare module '*/language.generated.cjs' {
+  interface GeneratedLexer {
+    setInput(input: string, yy?: unknown): void;
+    lex(): string | number;
+    yytext: string;
+    EOF?: number;
+  }
+  interface GeneratedParser {
+    parse(input: string): string;
+    lexer: GeneratedLexer;
+    symbols_?: Record<string, number>;
+  }
+  const parser: {
+    parse(input: string): string;
+    parser: GeneratedParser;
+    lexer?: GeneratedLexer;
+    symbols_?: Record<string, number>;
+  };
+  export default parser;
+}
