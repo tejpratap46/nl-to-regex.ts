@@ -4,6 +4,17 @@ import { TemplateProvider } from './providers/templateProvider.js';
 export type { RegexProvider, TranslateOptions, TranslationResult } from './types.js';
 export { dslToRegExp, dslToCompiledRegExp, escapeForRegex } from './dslToRegExp.js';
 export { TemplateProvider, LIT, NUMBER, type CustomRule, type MatchSpec } from './providers/templateProvider.js';
+export {
+  CLAUSES,
+  getClauses,
+  autocomplete,
+  type ClauseCategory,
+  type ClauseDefinition,
+  type AutocompleteSuggestion,
+  type AutocompleteContext,
+  type AutocompleteResult,
+  type AutocompleteOptions,
+} from './clauses.js';
 
 export class NlToRegex {
   private providers: RegexProvider[];

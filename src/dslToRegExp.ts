@@ -1,11 +1,9 @@
 /**
- * IMPORTANT, non-obvious thing about this dataset:
- *
- * The regex strings in inclinedadarsh/nl-to-regex are NOT plain ECMAScript
- * regex. They come from the deep-regex / KB13 corpus, which encodes its
- * targets in a small DSL layered on top of regex syntax:
+ * The regex strings in inclinedadarsh/nl-to-regex and the deep-regex / KB13 corpus
+ * encode their targets in a small DSL layered on top of regex syntax:
  *
  *   - `&`  means "AND" — both sides must hold for the whole string.
+ *   - `|`  means "OR"  — at least one side must hold.
  *   - `~(X)` means "NOT" — X must not hold.
  *
  * Neither `&` nor `~` are valid regex metacharacters in JS (they'd just be
@@ -19,37 +17,14 @@
  *                                       zero-width lookaheads; the last
  *                                       clause does the actual consuming)
  *   ~(X)        ->  (?!X)              (negative lookahead)
+ *   A | B       ->  (?:A|B)            (non-capturing alternation)
  *
- * This is a single-level (non-recursive) top-level splitter. Every example
- * in the dataset only nests `&`/`~` one level deep, so this covers the
- * dataset patterns. If you feed it something with deeper nesting it will
- * fall back to returning the original string unmodified for that clause
- * (safe, but may not be a perfect translation) rather than throwing.
+ * This function supports arbitrary nested and combined expressions of `&`, `|`,
+ * and `~(X)` with parenthesis grouping.
  */
 
-/** Escape a literal so it's safe to splice into a regex (used by the
- * built-in grammar and available for custom TemplateProvider.addRule()
- * `build()` callbacks that need to splice a captured value in too). */
 export function escapeForRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Split `expr` on top-level `&` characters, respecting parenthesis depth. */
-function splitTopLevelAnd(expr: string): string[] {
-  const clauses: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < expr.length; i++) {
-    const ch = expr[i];
-    if (ch === '(') depth++;
-    else if (ch === ')') depth--;
-    else if (ch === '&' && depth === 0) {
-      clauses.push(expr.slice(start, i));
-      start = i + 1;
-    }
-  }
-  clauses.push(expr.slice(start));
-  return clauses.map((c) => c.trim()).filter((c) => c.length > 0);
 }
 
 /** True if `s` is a single balanced `(...)` group spanning the whole string. */
@@ -57,8 +32,9 @@ function isFullyWrapped(s: string): boolean {
   if (s[0] !== '(' || s[s.length - 1] !== ')') return false;
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '(') depth++;
-    else if (s[i] === ')') {
+    const ch = s[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') {
       depth--;
       // closed before reaching the end => not a single spanning group
       if (depth === 0 && i !== s.length - 1) return false;
@@ -67,52 +43,96 @@ function isFullyWrapped(s: string): boolean {
   return depth === 0;
 }
 
-/** Convert one clause into either a lookahead (if not the consuming clause) or a plain fragment. */
-function clauseToLookahead(clause: string): string {
-  if (clause.startsWith('~') && isFullyWrapped(clause.slice(1))) {
-    const inner = clause.slice(2, -1); // strip leading '~(' and trailing ')'
-    return `(?!${inner})`;
+/** Split `expr` on top-level `delim` character, respecting parenthesis depth. */
+function splitTopLevel(expr: string, delim: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === delim && depth === 0) {
+      parts.push(expr.slice(start, i));
+      start = i + 1;
+    }
   }
-  if (isFullyWrapped(clause)) {
-    const inner = clause.slice(1, -1);
-    return `(?=${inner})`;
-  }
-  // Opaque fragment (may itself contain leading/trailing glue like ".*") —
-  // wrap the whole thing, it's still a valid zero-width assertion.
-  return `(?=${clause})`;
+  parts.push(expr.slice(start));
+  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
 }
 
-/** Convert the consuming (last) clause. Negation here still needs a lookahead + filler. */
-function clauseToConsuming(clause: string): string {
-  if (clause.startsWith('~') && isFullyWrapped(clause.slice(1))) {
-    const inner = clause.slice(2, -1);
-    return `(?!${inner})[\\s\\S]*`;
+/** Flatten nested AND clauses: (A & B) & C -> [A, B, C] */
+function collectAndClauses(expr: string): string[] {
+  let trimmed = expr.trim();
+  while (isFullyWrapped(trimmed) && !trimmed.startsWith('(?')) {
+    trimmed = trimmed.slice(1, -1).trim();
   }
-  return clause;
+  const orBranches = splitTopLevel(trimmed, '|');
+  if (orBranches.length > 1) {
+    return [trimmed];
+  }
+  const andClauses = splitTopLevel(trimmed, '&');
+  if (andClauses.length > 1) {
+    return andClauses.flatMap(collectAndClauses);
+  }
+  return [trimmed];
 }
 
 /**
  * Convert a deep-regex-style DSL pattern into a valid ECMAScript regex
- * source string. Idempotent on input that's already plain regex (no `&`
- * at depth 0, no top-level `~(...)`) — safe to call on every pattern
- * whether or not you know it needed conversion.
+ * source string. Recursively compiles `&`, `|`, and `~(X)` at any nesting depth.
+ * Idempotent on input that's already plain regex.
  */
 export function dslToRegExp(expr: string): string {
-  const trimmed = expr.trim();
-  const clauses = splitTopLevelAnd(trimmed);
+  let trimmed = expr.trim();
 
-  if (clauses.length === 1) {
-    const only = clauses[0];
-    if (only.startsWith('~') && isFullyWrapped(only.slice(1))) {
-      const inner = only.slice(2, -1);
-      return `^(?!${inner})[\\s\\S]*$`;
-    }
-    return only;
+  // Strip redundant outer parentheses if not a special group (?...)
+  while (isFullyWrapped(trimmed) && !trimmed.startsWith('(?')) {
+    trimmed = trimmed.slice(1, -1).trim();
   }
 
-  const last = clauses[clauses.length - 1];
-  const lookaheads = clauses.slice(0, -1).map(clauseToLookahead).join('');
-  return `${lookaheads}${clauseToConsuming(last)}`;
+  // 1. Top-level OR (|)
+  const orBranches = splitTopLevel(trimmed, '|');
+  if (orBranches.length > 1) {
+    const compiled = orBranches.map((b) => dslToRegExp(b));
+    return `(?:${compiled.join('|')})`;
+  }
+
+  // 2. Top-level AND (&)
+  const andClauses = collectAndClauses(trimmed);
+  if (andClauses.length > 1) {
+    const lookaheads = andClauses.slice(0, -1).map((clause) => {
+      let c = clause.trim();
+      while (isFullyWrapped(c) && !c.startsWith('(?')) {
+        c = c.slice(1, -1).trim();
+      }
+      if (c.startsWith('~') && isFullyWrapped(c.slice(1))) {
+        const inner = dslToRegExp(c.slice(2, -1));
+        return `(?!${inner})`;
+      }
+      const compiled = dslToRegExp(c);
+      return `(?=${compiled})`;
+    }).join('');
+
+    let last = andClauses[andClauses.length - 1].trim();
+    while (isFullyWrapped(last) && !last.startsWith('(?')) {
+      last = last.slice(1, -1).trim();
+    }
+    if (last.startsWith('~') && isFullyWrapped(last.slice(1))) {
+      const inner = dslToRegExp(last.slice(2, -1));
+      return `${lookaheads}(?!${inner})[\\s\\S]*`;
+    }
+    const compiledLast = dslToRegExp(last);
+    return `${lookaheads}${compiledLast}`;
+  }
+
+  // 3. Negation ~(...)
+  if (trimmed.startsWith('~') && isFullyWrapped(trimmed.slice(1))) {
+    const inner = dslToRegExp(trimmed.slice(2, -1));
+    return `^(?!${inner})[\\s\\S]*$`;
+  }
+
+  return trimmed;
 }
 
 /** Convert + compile in one step, with a clear error if the result isn't a valid regex. */

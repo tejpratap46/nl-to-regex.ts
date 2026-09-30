@@ -20,6 +20,7 @@ re.test('uuzip'); // true
 - [Gotchas](#gotchas)
 - [Extending the grammar](#extending-the-grammar)
 - [Adding a rule at runtime](#adding-a-rule-at-runtime)
+- [Autocomplete & clause APIs](#autocomplete--clause-apis)
 - [Build & test](#build--test)
 - [Project structure](#project-structure)
 
@@ -97,12 +98,28 @@ full grammar):
 | `lines with exactly 5 digits` | `(.*[0-9].*){5}` |
 | `lines with between 2 and 5 words` | `([^A-Za-z]*\b[A-Za-z]+\b[^A-Za-z]*){2,5}` |
 | `lines that have all of its letters capitalized` | `^(?!.*[a-z].*)[\s\S]*$` |
-| `lines with only lowercase letters` | `[a-z]*` |
+| `lines with only lowercase letters` | `^[a-z]*$` |
+| `lines that start with 'a' and end with 'b'` | `(?=^a.*).*b$` |
+| `lines that start with 'a' or ends with 'b'` | `(?:^a.*\|.*b$)` |
+| `lines using 'su' after 'son' or 'soon'` | `.*(son\|soon).*su.*` |
+| `lines using 'q' before 'r'` | `.*q.*r.*` |
+| `lines containing 'foo' or 'nu' before 'dist' or 'dust'` | `.*(foo\|nu).*(dist\|dust).*` |
+| `lines with 'a' before 'b' and 'c' after 'd'` | `(?=.*a.*b.*).*d.*c.*` |
+| `lines with 'a' and 'b'` | `(?=.*a.*).*b.*` |
+| `lines with 'a' or 'b'` | `.*(a\|b).*` |
+| `lines that start with 'a' and 'b' after 'c' or ends with 'd'` | `(?:(?=^a.*).*c.*b.*\|.*d$)` |
+| `lines that start with 'uu' followed by words starting with 'z'` | `^uu.*\bz[A-Za-z]*\b.*` |
+| `lines that have 'sandwich' but not the word 'ham'` | `(?=.*sandwich.*)(?!.*\bham\b.*)[\s\S]*` |
 
-**Known limitation**: `and`/`or` only chain literals *within* a single
-"contains" clause (`"contains 'a' and 'b'"`), not across different clause
-shapes (`"starts with 'a' and contains a digit"` isn't supported) — see
-[Extending the grammar](#extending-the-grammar) for why.
+### Combining conditions (`and`, `or`, `after`, `before`, `with`, etc.)
+
+Clauses and literals can be freely composed in any combination:
+- **`and`**: conjunction across clauses and literals (e.g. `"starts with 'a' and ends with 'b'"`, `"contains 'a' and starts with 'b'"`)
+- **`or`**: alternation across clauses and literals (e.g. `"starts with 'a' or ends with 'b'"`, `"'foo' or 'bar'"`)
+- **`before` / `after` / `followed by`**: sequencing conditions (e.g. `"'a' before 'b'"`, `"'su' after 'son' or 'soon'"`, `"starts with 'uu' followed by words starting with 'z'"`)
+- **`with`**: phrasing prefixes (`"lines with 'a' and 'b'"`, `"lines with exactly 5 digits"`) and connectors
+- **`not` / `but not` / `without`**: negations (e.g. `"contains 'a' but not 'b'"`, `"'sandwich' but not the word 'ham'"`)
+- **Grouping**: parentheses for nested expressions (e.g. `"('a' or 'b') and 'c'"`)
 
 ## Gotchas
 
@@ -110,13 +127,13 @@ Two things about the underlying dataset that will silently break your
 regex if you're not using `TemplateProvider` (which already handles both):
 
 1. **The target strings are a small DSL, not plain regex.** `&` means
-   AND, `~(X)` means NOT — e.g. `(.*a.*)&(.*b.*)` means "contains a AND
+   AND, `|` means OR, `~(X)` means NOT — e.g. `(.*a.*)&(.*b.*)` means "contains a AND
    contains b". Neither is a valid JS regex metacharacter;
    `new RegExp("(.*a.*)&(.*b.*)")` looks for a literal `&` character and
    matches almost nothing. [`src/dslToRegExp.ts`](src/dslToRegExp.ts)
-   converts these into lookaheads (`(?=a)(?=b)`) / negative lookaheads
-   (`(?!x)`) before you ever call `new RegExp(...)`. **Every pattern from
-   `TemplateProvider` goes through `dslToRegExp()`** — keep this in mind if
+   recursively converts these into lookaheads (`(?=a)(?=b)`), non-capturing groups
+   (`(?:a|b)`), and negative lookaheads (`(?!x)`) before you ever call `new RegExp(...)`.
+   **Every pattern from `TemplateProvider` goes through `dslToRegExp()`** — keep this in mind if
    you're hand-rolling a new provider.
 
 2. **JS matching semantics differ from what the dataset assumes.** The
@@ -139,20 +156,12 @@ of independent regexes. To recognize a new phrasing:
    [`src/providers/grammar/language.jisonlex`](src/providers/grammar/language.jisonlex).
 2. Add a production in
    [`src/providers/grammar/language.jison`](src/providers/grammar/language.jison)
-   whose semantic action returns DSL source — the same `&`/`~(...)`
+   whose semantic action returns DSL source — the same `&`/`|`/`~(...)`
    syntax `dslToRegExp.ts` already understands.
 3. Run `npm run compile:jison` to regenerate the parser, then rebuild.
 
 Alternatively, pass your own `providers` array to `NlToRegex` entirely
 and skip `TemplateProvider` altogether.
-
-**Why `and`/`or` can't chain across clause shapes**: the grammar is
-LALR(1) (one token of lookahead). After `"contains 'a' and"`, the parser
-would need to peek a *second* token to know whether another literal
-follows (`'b'`, extending the same contains-clause) or a whole new clause
-does (`starts with 'b'`) — that's outside what an LALR(1) parser can
-decide, so it's intentionally out of scope rather than a bug. See the
-comment at the top of `language.jison` for more.
 
 ## Adding a rule at runtime
 
@@ -215,6 +224,99 @@ Note the second rule uses `LIT` (not `NUMBER`) for `10` — `LIT` accepts
 any token text, digits included; reach for `NUMBER` only when you want
 the match to fail on non-digit input at that position.
 
+## Autocomplete & clause APIs
+
+If you are building an interactive UI — such as a search bar, Monaco editor autocomplete, or a CLI prompt — `nl-to-regex` exports APIs to retrieve the full clause catalog and provide context-aware autocomplete suggestions as the user types (particularly after pressing space).
+
+### Retrieving the clause catalog (`getClauses`)
+
+Use `getClauses()` (or the frozen `CLAUSES` array) to inspect all supported natural language clauses and patterns:
+
+```ts
+import { getClauses, CLAUSES } from 'nl-to-regex';
+
+// Get all built-in clauses
+const allClauses = getClauses();
+
+// Filter by category: 'term' | 'position' | 'content' | 'sequence' | 'count' | 'casing' | 'connector'
+const terms = getClauses('term');
+const positionClauses = getClauses('position');
+const connectors = getClauses('connector');
+```
+
+Each `ClauseDefinition` includes:
+- `id`: unique identifier (e.g. `'term_literal'`, `'starts_with_text'`, `'digit_count_at_least'`)
+- `category`: clause classification (`'term' | 'position' | 'content' | 'sequence' | 'count' | 'casing' | 'connector'`)
+- `label`: human-readable label (e.g. `"'...'"`, `"starts with '...'"` or `"and"`)
+- `template`: template string with placeholders (e.g. `"'{text}'"`, `"starts with '{text}'"`)
+- `description`: explanation of what the clause matches
+- `examples`: example phrases
+- `keywords`: search keywords for prefix / fuzzy matching
+- `snippet`: default snippet string for editor insertion
+
+### Context-aware autocomplete after space (`autocomplete`)
+
+You do **not** need boilerplate prefixes like `lines that starts` — users can directly write expressions such as `'a' and 'b' after 'c'`, or `starts with 'uu'`, without boilerplate!
+
+`autocomplete(query, options?)` inspects the input query and returns smart completions based on cursor position and grammatical context:
+
+```ts
+import { autocomplete } from 'nl-to-regex';
+
+// 1. Initial input (or pressing space in an empty input)
+autocomplete(' ');
+// context: 'start'
+// suggestions: direct terms ("'...'"), sequence templates ("'...' after '...'"), and clauses ("starts with '...'")
+
+// 2. Direct bare clause flow: "'a' and 'b' after 'c'"
+autocomplete("'a' ");
+// context: 'after-clause'
+// suggestions: connectors ("and", "after", "before", "followed by", "or", "but not")
+
+autocomplete("'a' and ");
+// context: 'after-connector'
+// suggestions: direct terms ("'...'"), "the word '...'", clauses ("starts with '...'")
+
+autocomplete("'a' and 'b' ");
+// context: 'after-clause'
+// suggestions: connectors ("after", "before", "followed by", "and", "or")
+
+autocomplete("'a' and 'b' after ");
+// context: 'after-connector'
+// suggestions: direct terms ("'...'"), "the word '...'", "a digit", etc.
+
+// 3. Autocomplete while typing a word
+autocomplete('sta');
+// filterText: 'sta'
+// suggestions: filtered to matching clauses (e.g. "starts with '...'")
+
+// 4. In-clause continuation keywords
+autocomplete('starts ');
+// context: 'clause-continuation'
+// suggestions: "with '...'", "with a digit", "with a capital letter", "with the word '...'"
+```
+
+#### Supporting custom rules & limits
+
+You can pass user-defined custom rules (from `TemplateProvider.addRule()`) and configure limits or category filters:
+
+```ts
+import { autocomplete, LIT, NUMBER } from 'nl-to-regex';
+
+const result = autocomplete('repeats ', {
+  customRules: [
+    {
+      match: ['repeats', LIT, NUMBER, 'times'],
+      build: ([word, count]) => `(.*${word}.*){${count}}`,
+    },
+  ],
+  limit: 10,
+  categories: ['position', 'content', 'count'],
+});
+
+// result.suggestions includes custom rule completions alongside built-in suggestions
+```
+
 ## Build & test
 
 ```
@@ -237,9 +339,10 @@ the grammar.
 ```
 src/
   index.ts                        # NlToRegex orchestrator + public exports
+  clauses.ts                      # clause catalog + context-aware autocomplete engine
   types.ts                        # RegexProvider / TranslationResult
   dslToRegExp.ts                  # DSL (&, ~(...)) -> ECMAScript regex
-  selftest.ts                     # sample queries run via `node dist/selftest.js`
+  selftest.ts                     # test suite with test cases & API assertions
   providers/
     templateProvider.ts           # grammar-backed provider (default, no runtime deps)
     grammar/
