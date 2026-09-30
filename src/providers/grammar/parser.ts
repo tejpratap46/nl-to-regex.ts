@@ -1,4 +1,4 @@
-import generatedParser from './language.generated.cjs';
+import generatedParser from './language.generated.js';
 
 /**
  * Parse an English phrase (via the grammar in language.jison /

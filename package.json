@@ -1,6 +1,6 @@
 {
   "name": "@tejpratap/nl-to-regex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Translate English descriptions into valid JavaScript RegExp objects, using a fast offline template engine.",
   "author": "Tej Pratap Singh <tejpratap46@gmail.com>",
   "type": "module",
@@ -18,8 +18,8 @@
     "!dist/selftest.*"
   ],
   "scripts": {
-    "compile:jison": "jison src/providers/grammar/language.jison src/providers/grammar/language.jisonlex -o src/providers/grammar/language.generated.cjs",
-    "copy:grammar": "node -e \"require('fs').cpSync('src/providers/grammar/language.generated.cjs','dist/providers/grammar/language.generated.cjs')\"",
+    "compile:jison": "jison src/providers/grammar/language.jison src/providers/grammar/language.jisonlex -o src/providers/grammar/language.generated.js && node scripts/postprocess-grammar.mjs",
+    "copy:grammar": "node --input-type=module -e \"import fs from 'node:fs'; fs.mkdirSync('dist/providers/grammar', { recursive: true }); fs.cpSync('src/providers/grammar/language.generated.js', 'dist/providers/grammar/language.generated.js'); fs.cpSync('src/providers/grammar/language.generated.d.ts', 'dist/providers/grammar/language.generated.d.ts');\"",
     "build": "npm run compile:jison && tsc -p . && npm run copy:grammar",
     "test": "node --experimental-vm-modules ./dist/selftest.js",
     "prepublishOnly": "npm run build && npm test"

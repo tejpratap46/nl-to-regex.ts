@@ -1,4 +1,4 @@
-import generatedParser from './language.generated.cjs';
+import generatedParser from './language.generated.js';
 
 /**
  * Sentinel used in a TemplateProvider.addRule() `match` array to mark a
@@ -18,7 +18,7 @@ export interface Token {
 
 /**
  * Tokenize `input` using the SAME lexer the compiled grammar uses
- * (bundled inside language.generated.cjs), so rules registered via
+ * (bundled inside language.generated.js), so rules registered via
  * TemplateProvider.addRule() see exactly the same words/quoting/casing
  * behavior as the built-in grammar — no separate tokenizer to keep in
  * sync. Returns null (never throws) if the lexer can't tokenize the
@@ -30,7 +30,7 @@ export function tokenize(input: string): Token[] | null {
   if (!baseLexer || typeof baseLexer.setInput !== 'function' || typeof baseLexer.lex !== 'function') {
     throw new Error(
       "TemplateProvider.addRule() requires the generated parser's `.lexer` " +
-        '(setInput()/lex()/yytext) — this usually means language.generated.cjs ' +
+        '(setInput()/lex()/yytext) — this usually means language.generated.js ' +
         'is stale or was produced by an incompatible jison version. Regenerate it ' +
         'with `npm run compile:jison`.',
     );

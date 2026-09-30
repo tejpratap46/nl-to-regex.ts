@@ -1,4 +1,4 @@
-declare module '*/language.generated.cjs' {
+declare module '*/language.generated.js' {
   interface GeneratedLexer {
     setInput(input: string, yy?: unknown): void;
     lex(): string | number;
@@ -6,15 +6,15 @@ declare module '*/language.generated.cjs' {
     EOF?: number;
   }
   interface GeneratedParser {
-    parse(input: string): string;
+    parse(input: string, ...args: any[]): string;
     lexer: GeneratedLexer;
     symbols_?: Record<string, number>;
+    Parser?: any;
+    parser?: GeneratedParser;
   }
-  const parser: {
-    parse(input: string): string;
-    parser: GeneratedParser;
-    lexer?: GeneratedLexer;
-    symbols_?: Record<string, number>;
-  };
-  export default parser;
+  export const parser: GeneratedParser;
+  export const Parser: any;
+  export const parse: (input: string, ...args: any[]) => string;
+  const language: GeneratedParser;
+  export default language;
 }
