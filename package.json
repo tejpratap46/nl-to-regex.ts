@@ -1,6 +1,6 @@
 {
-  "name": "nl-to-regex",
-  "version": "0.1.0",
+  "name": "@tejpratap/nl-to-regex",
+  "version": "0.2.0",
   "description": "Translate English descriptions into valid JavaScript RegExp objects, using a fast offline template engine.",
   "author": "Tej Pratap Singh <tejpratap46@gmail.com>",
   "type": "module",
